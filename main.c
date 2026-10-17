@@ -18,6 +18,10 @@
 #define BOOSTER_BUTTON   BIT2       /* J4.32 -> P4.2 */
 #define JOYSTICK_X_PIN   BIT2       /* J1.2  -> P1.2/A2 */
 
+#define JOY_CENTER 1892
+#define JOY_DEADZONE 200
+#define PADDLE_SPEED 3
+
 static Graphics_Context g_context;
 static Graphics_Rectangle g_blocks[MAX_BLOCKS];
 static const Level *g_level;
@@ -246,17 +250,33 @@ static void Game_UpdatePaddle(void)
     unsigned int newX;
 
     adc = ADC_ReadJoystickX();
-    newX = (unsigned int)(((unsigned long)adc *
-             (unsigned long)(127 - PADDLE_WIDTH)) / 4095UL);
+    newX = g_paddleX;  // Keep the current position by default
 
-    if(newX != g_paddleX)
+    if (adc < JOY_CENTER - JOY_DEADZONE) //Check if the joystick is to the left
+    {
+        // Joystick is left
+        if (g_paddleX > PADDLE_SPEED)
+            newX = g_paddleX - PADDLE_SPEED; //Move the paddle to the left
+        else
+            newX = 0;
+    }
+    else if (adc > JOY_CENTER + JOY_DEADZONE) //Check if the joystick is to the right
+    {
+        // Joystick is right
+        if (g_paddleX < (128 - PADDLE_WIDTH) - PADDLE_SPEED) //Move the paddle to the left
+            newX = g_paddleX + PADDLE_SPEED;
+        else
+            newX = 128 - PADDLE_WIDTH;
+    }
+
+    // Redraw only if the paddle actually moved
+    if (newX != g_paddleX)
     {
         Draw_Paddle(&g_context, g_paddleX, GRAPHICS_COLOR_BLACK);
         g_paddleX = newX;
         Draw_Paddle(&g_context, g_paddleX, GRAPHICS_COLOR_RED);
     }
 }
-
 static void Game_UpdateBall(void)
 {
     int nextX;
