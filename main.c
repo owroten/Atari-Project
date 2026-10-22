@@ -16,6 +16,7 @@
 #define GAME_OVER        3
 
 #define BOOSTER_BUTTON   BIT2       /* J4.32 -> P4.2 */
+#define BOOSTER2_BUTTON   BIT3       /* J4.33 -> P4.3 */
 #define JOYSTICK_X_PIN   BIT2       /* J1.2  -> P1.2/A2 */
 
 #define JOY_CENTER 1892
@@ -41,6 +42,8 @@ static int g_ballY = 104;
 static int g_ballVX = 1;
 static int g_ballVY = -2;
 static unsigned char g_lastButton = 0;
+static int speedDivider = 1;
+static int button2IsPressed = 0;
 
 static void Clock_Init(void);
 static void Button_Init(void);
@@ -105,6 +108,10 @@ static void Button_Init(void)
     P4DIR &= ~BOOSTER_BUTTON;
     P4REN |= BOOSTER_BUTTON;
     P4OUT |= BOOSTER_BUTTON;
+    P4DIR &= ~BOOSTER2_BUTTON;
+    P4REN |= BOOSTER2_BUTTON;
+    P4OUT |= BOOSTER2_BUTTON;
+
 }
 
 static void ADC_Init(void)
@@ -132,7 +139,7 @@ static unsigned int ADC_ReadJoystickX(void)
 static void Timer_Init(void)
 {
     /* SMCLK = 8 MHz, /8 = 1 MHz. 33333 counts ~= 30 Hz. */
-    TA0CCR0 = 33333 - 1;
+    TA0CCR0 = 33333/speedDivider - 1;
     TA0CCTL0 = CCIE;
     TA0CTL = TASSEL_2 | ID_3 | MC_1 | TACLR;
 }
@@ -142,6 +149,23 @@ static unsigned char Button_IsPressed(void)
     if((P4IN & BOOSTER_BUTTON) == 0)
     {
         return 1;
+    }
+    return 0;
+}
+static unsigned char Button2_IsPressed(void)
+{
+    if(((P4IN & BOOSTER2_BUTTON) == 0) && (button2IsPressed == 0))
+    {
+        speedDivider = speedDivider * 2;
+        if(speedDivider == 8){
+            speedDivider = 1;
+        }
+        button2IsPressed = 1;
+        Timer_Init();
+        return 1;
+    }
+    if((P4IN & BOOSTER2_BUTTON) != 0){
+        button2IsPressed = 0;
     }
     return 0;
 }
@@ -201,9 +225,11 @@ static void Game_ResetBall(void)
 static void Game_Update(void)
 {
     unsigned char button;
+    unsigned char button2;
     unsigned char newPress;
 
     button = Button_IsPressed();
+    button2 = Button2_IsPressed();
     newPress = (unsigned char)(button && !g_lastButton);
     g_lastButton = button;
 
