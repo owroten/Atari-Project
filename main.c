@@ -19,9 +19,16 @@
 #define BOOSTER2_BUTTON   BIT3       /* J4.33 -> P4.3 */
 #define JOYSTICK_X_PIN   BIT2       /* J1.2  -> P1.2/A2 */
 
-#define JOY_CENTER 1892
+
+#define JOY_CENTER 1992 //Adjust per device
 #define JOY_DEADZONE 200
 #define PADDLE_SPEED 3
+
+#define BUZZER_PIN BIT7       /* P3.7 -> J4.40 */
+#define SOUND_BLOCK  0
+#define SOUND_BOUNCE 1
+#define SOUND_LOSE   2
+#define SOUND_WIN    3
 
 static Graphics_Context g_context;
 static Graphics_Rectangle g_blocks[MAX_BLOCKS];
@@ -61,6 +68,9 @@ static void Game_LoseLife(void);
 static void Game_StartNewGame(void);
 static void Game_AdvanceLevel(void);
 
+static void Buzzer_Init(void);
+static void Buzzer_Play(unsigned char sound);
+
 int main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;
@@ -68,6 +78,7 @@ int main(void)
     Clock_Init();
     Button_Init();
     ADC_Init();
+    Buzzer_Init();
 
     /* Enable configured GPIO on FRAM MSP430 devices. */
     PM5CTL0 &= ~LOCKLPM5;
@@ -385,6 +396,7 @@ static void Game_UpdateBall(void)
                 g_activeBlocks--;
             }
             g_score++;
+            Buzzer_Play(SOUND_BLOCK);
 
             if(blockCollision & (COLLIDING_EAST | COLLIDING_WEST))
             {
@@ -409,6 +421,7 @@ static void Game_UpdateBall(void)
     if(g_activeBlocks == 0)
     {
         g_state = GAME_WIN;
+        Buzzer_Play(SOUND_WIN);
         Draw_ModalBox(&g_context, "You Win!", "Press S2", 1, g_score);
     }
 }
@@ -418,6 +431,7 @@ static void Game_LoseLife(void)
     if(g_lives > 0)
     {
         g_lives--;
+        Buzzer_Play(SOUND_LOSE);
     }
 
     if(g_lives == 0)
@@ -453,6 +467,62 @@ static void Game_AdvanceLevel(void)
     g_lives = 3;
     Game_LoadLevel(g_levelNumber);
 }
+static void Buzzer_Init(void)
+{
+    /* P3.7 connects to the MKII buzzer at J4.40. */
+    P3SEL0 &= ~BUZZER_PIN;
+    P3SEL1 &= ~BUZZER_PIN;
+
+    P3DIR |= BUZZER_PIN;
+    P3OUT &= ~BUZZER_PIN;
+}
+
+static void Buzzer_Play(unsigned char sound)
+{
+    unsigned int i;
+    volatile unsigned int j;
+    unsigned int toggles;
+    unsigned int delayCount;
+
+    switch(sound)
+    {
+        case SOUND_BLOCK:
+            toggles = 100;
+            delayCount = 300;
+            break;
+
+        case SOUND_BOUNCE:
+            toggles = 80;
+            delayCount = 500;
+            break;
+
+        case SOUND_LOSE:
+            toggles = 300;
+            delayCount = 800;
+            break;
+
+        case SOUND_WIN:
+            toggles = 220;
+            delayCount = 300;
+            break;
+
+        default:
+            return;
+    }
+
+    for(i = 0; i < toggles; i++)
+    {
+        P3OUT ^= BUZZER_PIN;
+
+        for(j = 0; j < delayCount; j++)
+        {
+            __no_operation();
+        }
+    }
+
+    P3OUT &= ~BUZZER_PIN;
+}
+
 
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void TIMER0_A0_ISR(void)
