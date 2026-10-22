@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "GrLib/grlib/grlib.h"
 
-#define NUM_LEVELS 4
+#define NUM_LEVELS 5
 
 typedef struct
 {
